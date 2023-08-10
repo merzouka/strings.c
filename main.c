@@ -1,3 +1,5 @@
+#include <math.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,11 +10,11 @@
 #define STRLEN unsigned SignedSTRLEN
 #define STRLENSpecifier "%lld"
 
-#define Error(format, ...) char *buf; asprintf(buf, "Error : "format".\n", __VA_ARGS__)
+#define Error(format, ...) printf("Error : "format".\n", __VA_ARGS__)
 #define IndexOutOfRangeError(index) Error("index '%lld' out of bound", index)
-#define MemoryAllocationError Error("couldn't allocate")
-#define InvalidArgument(message) Error(message);
-#define THROW(error)  error; printf(buf); free(buf); exit(1)
+#define MemoryAllocationError Error("couldn't allocate memory, in '%s'", __func__)
+#define InvalidArgument(message) Error("%s", message);
+#define THROW(error)  error; exit(1)
 
 typedef struct {
     STRLEN len;
@@ -23,7 +25,7 @@ STRLEN len(string str){
     return str.len;
 }
 
-char get(string str, STRLEN index){
+char get(const string str, STRLEN index){
     if (index >= str.len){
         THROW(IndexOutOfRangeError(index));
     }
@@ -32,12 +34,12 @@ char get(string str, STRLEN index){
 
 void set(string str, STRLEN index, char c){
     if (index > str.len){
-        THROW(IndexOutOfRangeError, index);
+        THROW(IndexOutOfRangeError(index));
     }
     if (index == str.len || index == -1){
         char *tmp = realloc(str.chars, len(str) + 1 + 1);
         if (tmp == NULL){
-            THROW(MemoryAllocationError, __LINE__);
+            THROW(MemoryAllocationError);
         } else {
             str.chars = tmp;
         }
@@ -47,7 +49,7 @@ void set(string str, STRLEN index, char c){
     str.chars[index] = c;
 }
 
-string replaceFrom(string str1, char *str2, STRLEN index){
+string replaceFrom(const string str1, const char *str2, STRLEN index){
     int len2 = strlen(str2);
     STRLEN tmp = str1.len - (index + len2);
     string result = {.len = index + len2 + (tmp > 0 ? tmp : 0)};
@@ -64,11 +66,11 @@ string replaceFrom(string str1, char *str2, STRLEN index){
     return result;
 }
 
-string replaceStrFrom(string str1, string str2, STRLEN index){
+string replaceStrFrom(const string str1, const string str2, STRLEN index){
     return replaceFrom(str1, str2.chars, index);
 }
 
-void freeStr(int num, ...){
+void strfree(int num, ...){
     va_list args;
     va_start(args, num);
     string str;
@@ -79,7 +81,7 @@ void freeStr(int num, ...){
     va_end(args);
 }
 
-string new(char *chars){
+string new(const char *chars){
     if (chars == NULL){
         return (string){.len = 0, .chars = NULL};
     }
@@ -89,84 +91,97 @@ string new(char *chars){
     return str;
 }
 
-string join(int num, ...){
+string strjoin(int num, ...){
     va_list args;
     va_start(args, num);
     string str, result = {.len = 0, .chars = malloc(1)}; result.chars[0] = '\0';
     char *tmp = NULL;
     for (int i = 0; i < num; i++){
-        str = (string)va_arg(args, string);
+        str = (string)va_arg(args, const string);
         if (str.chars == NULL){
             continue;
         }
         result.len += str.len;
         tmp = realloc(result.chars, result.len + 1);
         if (tmp == NULL){
-            THROW(MemoryAllocationError, __LINE__);
+            THROW(MemoryAllocationError);
         }
         result.chars = tmp; strcat(result.chars, str.chars);
     }
     return result;
 }
 
-void print(char *delimiter, int num, ...){
+void strprintMany(const char *delimiter, int num, ...){
     if (delimiter == NULL){
         delimiter = "";
     }
     va_list args;
     va_start(args, num);
     for (int i = 0; i < num - 1; i++){
-        printf("%s%s", ((string)va_arg(args, string)).chars, delimiter);
+        printf("%s%s", ((const string)va_arg(args, string)).chars, delimiter);
     }
     printf("%s\n", ((string)va_arg(args, string)).chars);
     va_end(args);
 }
 
-char *toarray(string str){
+void strprint(const string str){
+    printf("%s\n", str.chars);
+}
+
+char *toarray(const string str){
     char *array = malloc(str.len + 1);
     memcpy(array, str.chars, str.len + 1);
     return array;
 }
 
-int compare(string str1, char *str2){
+int strcompare(const string str1, const char *str2){
     return strcmp(str1.chars, str2);
 }
 
-bool equals(string str1, char *str2){
-    return compare(str1, str2) == 0;
+bool strequals(const string str1, const char *str2){
+    return strcompare(str1, str2) == 0;
 }
 
-bool equalsAt(string str1, char *str2, STRLEN index){
-    size_t len = strlen(str2);
-    if (str1.len < index + len - 1){
+bool equalsAt(const char *main, const char *target, size_t index){
+    size_t len = strlen(target);
+    if (strlen(main) < index + len - 1){
         return false;
     }
-    return strncmp(str1.chars + index, str2, strlen(str2)) == 0;
+    return strncmp(main + index, target, len) == 0;
 }
 
-void replace(string str, char *target, char *replacement){
-    string repl = new(replacement);
-    string result = new(toarray(str));
+bool strequalsAt(const string main, const char *target, STRLEN index){
+    return equalsAt(main.chars, target, index);
 }
 
-int find(string str, char *target){
-    STRLEN i = 0;
-    while (i < str.len){
-        if (equalsAt(str, target, i)){
+size_t find(const char *main, const char *target){
+    for (size_t i = 0; i < strlen(main); i++){
+        if (equalsAt(main, target, i)){
             return i;
         }
     }
     return -1;
 }
 
-STRLEN min(STRLEN i1, STRLEN i2){
+SignedSTRLEN strfind(const string main, const char *target){
+    STRLEN i = 0;
+    while (i < main.len){
+        if (strequalsAt(main, target, i)){
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+SignedSTRLEN min(SignedSTRLEN i1, SignedSTRLEN i2){
     return i1 < i2 ? i1 : i2;
 }
 
-string substr(string str, long long start, long long end){
+string substr(string str, SignedSTRLEN start, SignedSTRLEN end){
     string result;
     if (end >= 0 && end < start){
-        THROW(InvalidArgument, "invalid range for subscripting.");
+        THROW(InvalidArgument("invalid range for subscripting."));
     }
 
     if (end < 0){
@@ -184,14 +199,59 @@ string substr(string str, long long start, long long end){
     return result;
 }
 
+char *replace(const char *main, const char *target, char *replacement){
+    char *result;
+    if (strlen(main) == 0){
+        result = malloc(1);
+        result[0] = '\0';
+        return result;
+    }
+
+    SignedSTRLEN i = find(main, target); 
+
+    if (i == -1){
+        result = malloc(strlen(main) + 1);
+        strcpy(result, main);
+        return result;
+    }
+
+    char *after = replace(main + i + strlen(target), target, replacement);
+
+    size_t lenReplacement = strlen(replacement);
+    result = malloc(i + lenReplacement + strlen(after) + 1);
+    strncpy(result, main, i); strncpy(result + i, replacement, lenReplacement); strcpy(result + i + lenReplacement, after);
+    free(after);
+
+    return result;
+}
+
+bool strcontains(const string main, const char *target){
+    for (STRLEN i = 0; i < len(main); i++){
+        if (strequalsAt(main, target, i)){
+            return true;
+        }
+    }
+    return false;
+}
+
+bool contains(const char *main, const char *target){
+    for (size_t i = 0; i < strlen(main); i++){
+        if (equalsAt(main, target, i)){
+            return true;
+        }
+    }
+    return false;
+}
+
 int main(void){
     const int l = 4;
     // string arr[] = {new(""), new("hello"), new("dude"), new("fuck")};
     string str = new("hello hell manhell");
-    printf("%s\n", equalsAt(str, "hell", 14) ? "true" : "false");
+    string sub = substr(str, 6, 6); 
+    printf("%s\n", contains("you fuc you man", "fuck") ? "true" : "false");
     /*for (int i = 0; i < l; i++){
         freeStr(1, arr[i]);
     }*/
-    freeStr(1, str);
+    strfree(2, sub, str);
     return 0;
 }
