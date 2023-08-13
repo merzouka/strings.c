@@ -5,10 +5,14 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <strings.h>
 
 #define SignedSTRLEN long long
 #define STRLEN unsigned SignedSTRLEN
 #define STRLENSpecifier "%lld"
+
+#define min(a, b) ((a) < (b) ? (a) : (b))
+#define max(a, b) ((a) > (b) ? (a) : (b))
 
 #define Error(format, ...) printf("Error : "format".\n", __VA_ARGS__)
 #define IndexOutOfRangeError(index) Error("index '%lld' out of bound", index)
@@ -21,19 +25,42 @@ typedef struct {
     char *chars;
 } string;
 
+/* returns the length of str
+ *
+ * function: len 
+ * param: str, the desired string
+ * return STRLEN (unsigned long long), the length of the string
+ * */
 STRLEN len(string str){
     return str.len;
 }
 
+/* returns character at index
+ *
+ * function: get
+ * param: str, the desired string
+ * param: index, the index of the character; if <0 indexing starts from the end (-1 corresponds to last character)
+ * exit if: index >= length or index < - length
+ * return: char, the character
+ * */
 char get(const string str, STRLEN index){
-    if (index >= str.len){
+    if (index >= str.len || index < - str.len){
         THROW(IndexOutOfRangeError(index));
     }
-    return str.chars[index];
+    return str.chars[index >= 0 ? index : str.len + index];
 }
 
+/* sets character at index to c
+ *
+ * function: set
+ * param: str, string
+ * param: index, index of character; if < 0 start indexing from end, if == str.len append c to str
+ * param: c, replacement
+ * exit if: index > str.len || index < - str.len 
+ * return: void
+ * */
 void set(string str, STRLEN index, char c){
-    if (index > str.len){
+    if (index > str.len || index < - str.len){
         THROW(IndexOutOfRangeError(index));
     }
     if (index == str.len || index == -1){
@@ -49,7 +76,24 @@ void set(string str, STRLEN index, char c){
     str.chars[index] = c;
 }
 
+/* returns a string, where the part of str1 at index with str2
+ *
+ * function: replaceFrom
+ * param: main, original string
+ * param: replacement, the replacement
+ * - replacement doesn't fit in left over space : extend size to fit
+ * param: index, the index from which to start
+ * - index > main length : exit
+ * - index < 0 : start indexing from end
+ * return: string, the resulting string
+ * */
 string replaceFrom(const string str1, const char *str2, STRLEN index){
+    if (index >= str1.len){
+        THROW(IndexOutOfRangeError(index));
+    }
+    if (index < 0){
+        index = str1.len + index;
+    }
     int len2 = strlen(str2);
     STRLEN tmp = str1.len - (index + len2);
     string result = {.len = index + len2 + (tmp > 0 ? tmp : 0)};
@@ -129,9 +173,7 @@ void strprint(const string str){
 }
 
 char *toarray(const string str){
-    char *array = malloc(str.len + 1);
-    memcpy(array, str.chars, str.len + 1);
-    return array;
+    return str.chars;
 }
 
 int strcompare(const string str1, const char *str2){
@@ -174,11 +216,28 @@ SignedSTRLEN strfind(const string main, const char *target){
     return -1;
 }
 
-SignedSTRLEN min(SignedSTRLEN i1, SignedSTRLEN i2){
-    return i1 < i2 ? i1 : i2;
+char *substr(const char *str, long start, long end){
+    char *result;
+    size_t strLen = strlen(str), resultLen;
+    if (end >= 0 && end < start){
+        THROW(InvalidArgument("invalid range for subscripting."));
+    }
+    if (end < 0){
+        resultLen = (strLen + end) - start;
+    } else {
+        resultLen = min(end - start, strLen - start);
+    }
+
+    result = malloc(resultLen + 1);
+    for (int i = 0; i < resultLen; i++){
+        result[i] = str[i + start];
+    }
+    result[resultLen] = '\0';
+ 
+    return result;
 }
 
-string substr(string str, SignedSTRLEN start, SignedSTRLEN end){
+string strsub(const string str, SignedSTRLEN start, SignedSTRLEN end){
     string result;
     if (end >= 0 && end < start){
         THROW(InvalidArgument("invalid range for subscripting."));
@@ -199,7 +258,7 @@ string substr(string str, SignedSTRLEN start, SignedSTRLEN end){
     return result;
 }
 
-char *replace(const char *main, const char *target, char *replacement){
+char *replace(const char *main, const char *target, const char *replacement){
     char *result;
     if (strlen(main) == 0){
         result = malloc(1);
@@ -243,15 +302,161 @@ bool contains(const char *main, const char *target){
     return false;
 }
 
+/* returns lower case str
+ * 
+ * function: lower
+ * param: str, the string to be converted
+ * return: char *, pointer to lower case string
+ * */
+char *lower(const char *str){
+    char *result = malloc(strlen(str) + 1);
+    size_t i;
+    for (; str[i] != '\0'; i++){
+        if (str[i] >= 'A' && str[i] <= 'Z'){
+            result[i] = str[i] - 'A' + 'a'; continue;
+        }
+        result[i] = str[i];
+    }
+    result[i] = '\0';
+
+    return result;
+}
+
+/* returns a lower case str
+ * 
+ * function: strlower
+ * param: str, the string to convert
+ * return: string, a struct containing the resulting string
+ * */ 
+string strlower(const char *str){
+    return (string){.len = strlen(str), .chars = lower(str)};
+}
+
+/* returns upper case str
+ *
+ * function: upper
+ * param: str, the string to convert
+ * return: char *, the resulting string
+ * */
+char *upper(const char *str){
+    char *result = malloc(strlen(str) + 1);
+    size_t i = 0;
+    for (; str[i] != '\0'; i++){
+        if (str[i] >= 'a' && str[i] <= 'z'){
+            result[i] = str[i] - 'a' + 'A'; continue;
+        }
+        result[i] = str[i];
+    }
+    result[i] = '\0';
+    return result;
+}
+
+/* returns upper case str
+ * 
+ * function: strupper
+ *
+ * param: str - the string to convert
+ *
+ * return: string - a struct containing the resulting string
+ * */ 
+string strupper(const char *str){
+    return (string){.len = strlen(str), .chars = upper(str)};
+}
+
+/* returns a copy of str
+ *
+ * function: copy
+ *
+ * param: str - the string to copy
+ *
+ * return: char * - the copy
+ * */
+char *copy(const char *str){
+    size_t len = strlen(str);
+    char *result = malloc(len + 1);
+    memcpy(result, str, len + 1);
+    return result;
+}
+
+/* returns a copy of str
+ *
+ * function: strcopy
+ *
+ * param: str - the string to copy
+ *
+ * return: string - the copy
+ * */
+string strcopy(string str){
+    return (string){.len = str.len, .chars = copy(str.chars)};
+}
+
+/* returns the count of target in main
+ *
+ * function: count
+ *
+ * param: main - the string to search in 
+ *
+ * param: target - the string to look for
+ *
+ * return: int - the count
+ * */
+int count(const char *main, const char *target){
+    int c = 0;
+    for(int i = 0; main[i] != '\0'; i++){
+        if (equalsAt(main, target, i)){
+            c++;
+        }
+    }
+    return c;
+}
+
+/* returns the count of target in main
+ *
+ * function: strcount
+ *
+ * param: main - the string to search in 
+ *
+ * param: target - the string to look for
+ *
+ * return: int - the count
+ * */
+int strcount(const string main, const char *target){
+    return count(main.chars, target);
+}
+
+char **split(const char *main, const char *separator, int num){
+    int partsCount = count(main, separator) + 1;
+    size_t separatorLen = strlen(separator);
+    partsCount = num > 0 ? min(partsCount, num) : partsCount;
+    // when starting, the program is already in the first part
+    num = 1;
+    printf("%d\n", partsCount);
+
+    // array is terminated by NULL
+    char **result = malloc(sizeof(char *) * (partsCount + 1));
+    int start = 0;
+
+    for (int i = 0; main[i] != '\0'; i++){
+        if (equalsAt(main, separator, i) && num < partsCount){
+            result[num - 1] = substr(main, start, i); num++; i += separatorLen - 1; start = i + 1;
+        } 
+        if (num >= partsCount){
+            break;
+        }
+    }
+    result[partsCount] = substr(main, start, strlen(main)); result[partsCount + 1] = NULL;
+    return result;
+}
+
 int main(void){
     const int l = 4;
     // string arr[] = {new(""), new("hello"), new("dude"), new("fuck")};
-    string str = new("hello hell manhell");
-    string sub = substr(str, 6, 6); 
-    printf("%s\n", contains("you fuc you man", "fuck") ? "true" : "false");
-    /*for (int i = 0; i < l; i++){
-        freeStr(1, arr[i]);
-    }*/
-    strfree(2, sub, str);
+    char **str = split("hello;man;how;are;you;doing;ass;man;", ";", -1);
+    for (int i = 0; str[i] != NULL; i++){
+        printf("'%s'\n", str[i]); free(str[i]);
+    }
+    free(str);
+    // printf("%s\n", contains("you fuc you man", "fuck") ? "true" : "false");
+    // strfree(2, sub, str);
     return 0;
 }
