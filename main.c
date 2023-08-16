@@ -127,7 +127,9 @@ void strfree(int num, ...){
 
 string new(const char *chars){
     if (chars == NULL){
-        return (string){.len = 0, .chars = NULL};
+        string result = (string){.len = 0, .chars = malloc(1)};
+        result.chars[0] = '\0';
+        return result;
     }
     int len = strlen(chars);
     string str = {.len = len, .chars = malloc(len + 1)};
@@ -258,6 +260,18 @@ string strsub(const string str, SignedSTRLEN start, SignedSTRLEN end){
     return result;
 }
 
+/* returns copy of main where target is replaced by replacement
+ *
+ * function: replace
+ *
+ * param: main - the string to operate on
+ *
+ * param: target - the target string
+ *
+ * param: replacement - the string to replace with
+ *
+ * returns: char * - result of replacement
+ * */
 char *replace(const char *main, const char *target, const char *replacement){
     char *result;
     if (strlen(main) == 0){
@@ -284,6 +298,23 @@ char *replace(const char *main, const char *target, const char *replacement){
     return result;
 }
 
+/* returns copy of main where target is replaced by replacement
+ *
+ * function: strreplace
+ *
+ * param: main - the string to operate on
+ *
+ * param: target - the target string
+ *
+ * param: replacement - the string to replace with
+ *
+ * returns: string - result of replacement
+ * */
+string strreplace(const string main, const char *target, const char *replacement){
+    char *result = replace(main.chars, target, replacement);
+    return (string){.len = strlen(result), .chars = result};
+}
+
 bool strcontains(const string main, const char *target){
     for (STRLEN i = 0; i < len(main); i++){
         if (strequalsAt(main, target, i)){
@@ -293,9 +324,9 @@ bool strcontains(const string main, const char *target){
     return false;
 }
 
-bool contains(const char *main, const char *target){
-    for (size_t i = 0; i < strlen(main); i++){
-        if (equalsAt(main, target, i)){
+bool contains(const char *haystack, const char *needle){
+    for (size_t i = 0; i < strlen(haystack); i++){
+        if (equalsAt(haystack, needle, i)){
             return true;
         }
     }
@@ -305,7 +336,9 @@ bool contains(const char *main, const char *target){
 /* returns lower case str
  * 
  * function: lower
+ *
  * param: str, the string to be converted
+ *
  * return: char *, pointer to lower case string
  * */
 char *lower(const char *str){
@@ -325,7 +358,9 @@ char *lower(const char *str){
 /* returns a lower case str
  * 
  * function: strlower
+ *
  * param: str, the string to convert
+ *
  * return: string, a struct containing the resulting string
  * */ 
 string strlower(const char *str){
@@ -335,7 +370,9 @@ string strlower(const char *str){
 /* returns upper case str
  *
  * function: upper
+ *
  * param: str, the string to convert
+ *
  * return: char *, the resulting string
  * */
 char *upper(const char *str){
@@ -424,13 +461,32 @@ int strcount(const string main, const char *target){
     return count(main.chars, target);
 }
 
+/* returns an array of the parts of main split using separator,
+ * the number of elements in the array = num + 1, the last element is NULL.
+ *
+ * function: split
+ *
+ * param: main - the string to split
+ *
+ * param: separator - the string separating the elements
+ *
+ * param: num - the number of elements in the array:
+ *  num = 0 -> returns null 
+ *  num < 0 -> ignores num, and splits main by separator
+ *  num = 1 -> array only contains copy of main.
+ *
+ * returns: char ** - the array containing the parts
+ * */
 char **split(const char *main, const char *separator, int num){
+    if (num == 0){
+        return NULL;
+    }
+
     int partsCount = count(main, separator) + 1;
     size_t separatorLen = strlen(separator);
     partsCount = num > 0 ? min(partsCount, num) : partsCount;
     // when starting, the program is already in the first part
     num = 1;
-    printf("%d\n", partsCount);
 
     // array is terminated by NULL
     char **result = malloc(sizeof(char *) * (partsCount + 1));
@@ -444,19 +500,69 @@ char **split(const char *main, const char *separator, int num){
             break;
         }
     }
-    result[partsCount] = substr(main, start, strlen(main)); result[partsCount + 1] = NULL;
+    result[partsCount - 1] = substr(main, start, strlen(main)); result[partsCount] = NULL;
     return result;
 }
 
-int main(void){
-    const int l = 4;
-    // string arr[] = {new(""), new("hello"), new("dude"), new("fuck")};
-    char **str = split("hello;man;how;are;you;doing;ass;man;", ";", -1);
-    for (int i = 0; str[i] != NULL; i++){
-        printf("'%s'\n", str[i]); free(str[i]);
+/* returns an array of the parts of main split using separator,
+ * the number of elements in the array = num + 1, the last element is NULL.
+ *
+ * function: split
+ *
+ * param: main - the string to split
+ *
+ * param: separator - the string separating the elements
+ *
+ * param: num - the number of elements in the array:
+ *  num = 0 -> returns null 
+ *  num < 0 -> ignores num, and splits main by separator
+ *  num = 1 -> array only contains copy of main.
+ *
+ * returns: string * - the array containing the parts
+ * */
+string *strsplit(const string main, const char *separtor, int num){
+    char **parts = split(main.chars, separtor, num);
+    int i = 0;
+    for (;parts[i] != NULL; i++){}
+    string *result = malloc(sizeof(string) * (i + 1));
+    for (i = 0; parts[i] != NULL; i++){
+        result[i] = (string){.len = strlen(parts[i]), .chars = parts[i]};
     }
-    free(str);
-    // printf("%s\n", contains("you fuc you man", "fuck") ? "true" : "false");
-    // strfree(2, sub, str);
+    result[i] = (string){.len = 0, .chars = NULL}; free(parts);
+    return result;
+}
+
+/* returns true if string is null, or contains no characters
+ *
+ * function: strempty
+ *
+ * param: str - the string to test 
+  *
+  * returns: bool - is the string empty?
+ * */
+bool strempty(const string str){
+    return str.len == 0;
+}
+
+/* returns true if string is null
+ *
+ * function: strnull
+ *
+ * param: str - the string 
+ *
+ * returns: bool - is null?
+ * */
+bool strnull(const string str){
+    return str.chars == NULL;
+}
+
+int main(void){
+    string str = new("hello;man");
+    string *parts = strsplit(str, ";", -1);
+    for (int i = 0; !strnull(parts[i]); i++){
+        strprint(parts[i]); strfree(1, parts[i]);
+    }
+    free(parts);
+    strfree(1, str);
     return 0;
 }
